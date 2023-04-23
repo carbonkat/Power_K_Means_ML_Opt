@@ -12,51 +12,29 @@ from euclidean_k_means import kmeans, power_kmeans
 from bregman_k_means import power_kmeans_bregman
 
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+import pandas as pd
+import matplotlib.pyplot as plt
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter(action='ignore', category=DeprecationWarning)
 
-def setup_experiment(init_params, exp_dir):
+def setup_experiment(init_params):
     init_params_name_copy = init_params['data_params'].copy()
     init_params_name_copy['s_0'] = init_params['s_0']
     del init_params_name_copy['center_box']
     del init_params_name_copy['center_coordinates']
-    #print(init_params_name_copy)
     test = "n_samples_" + str(init_params_name_copy['n_samples']) + "_n_features_" + str(init_params_name_copy['n_features']) + "_centers_" + str(init_params_name_copy['centers']) + "_data_dist_" + str(init_params_name_copy['data_dist']) + "_desired_variance_" + str(init_params_name_copy['desired_variance']) + "_s_0_" + str(init_params_name_copy['s_0'])
-    #print(test)
     init_params_name_copy = test
-    exp_file = exp_dir + str(init_params_name_copy) + '.csv'
     data_lambda = lambda i: generate_points(random_state=i, **init_params['data_params'])
 
-    return exp_file, data_lambda
+    return data_lambda
 
 
-def setup_experiment_group(exp_dir, exp_id):
-    if not os.path.isdir(exp_dir):
-        os.mkdir(exp_dir)
-
-    #setup experiment directory
-    if not exp_id:
-        exp_id = datetime.now().strftime('%Y%m-%d%H-%M%S-') + str(uuid4()) + '/'
-
-    exp_dir = exp_dir + exp_id
-
-    if not os.path.isdir(exp_dir):
-        os.mkdir(exp_dir)
-
-    return exp_dir
-
-
-def run_experiment(init_params, exp_dir):
+def run_experiment(init_params):
     start_exp = time.time()
-    exp_file, data_func = setup_experiment(init_params, exp_dir)
-
-    if os.path.isfile(exp_file): #if experiment has already been completed, exit
-        return
+    data_func = setup_experiment(init_params)
 
     k = init_params['data_params']['centers']
-    phi = get_phi(dist_to_phi(init_params['bregman_dist']))
-    phi_gaussian = get_phi(dist_to_phi('gaussian'))
 
     iters_og = []
     times_og = []
@@ -70,60 +48,42 @@ def run_experiment(init_params, exp_dir):
     ARIs_power = []
     NMIs_power = []
 
-    iters_bregman_iterative = []
-    times_bregman_iterative = []
-    VIs_bregman_iterative = []
-    ARIs_power = []
-    NMIs_power = []
-
-    iters_bregman = []
-    times_bregman = []
-    VIs_bregman = []
-    ARIs_bregman = []
-    NMIs_bregman = []
-
-
     i = 0
     cnt = 0
 
     start_trial = time.time()
+    sample_dataset = []
     #run n trials for each experiment
     while cnt < init_params['n_trials']:
         X, classes_true, centers_true = data_func(i)
         X = torch.tensor(X)
         X = X.to(torch.float64)
 
+
         centers_init = initcenters(X, k, random_state=i) #want to keep consistent center initialization
 
         #lloyd's, power k-means, bregman iterative, bregman closed form
         classes_og, centers_og, iter_og, time_og = kmeans(X, k, centers_init)
         classes_power, centers_power, s_final_power, iter_power, time_power = power_kmeans(X, init_params['s_0'], k, centers_init, classes_true)
-        #gamma_shape = init_params['data_params']['shape'] if 'shape' in init_params['data_params'].keys() else None
-        #failed_to_converge, classes_bregman, centers_bregman, s_final_bregman, iter_bregman, time_bregman = power_kmeans_bregman(phi, X, init_params['s_0'], k, centers_init, n_epochs=1, lr=0.01, iterative=False, convergence_threshold=init_params['convergence_threshold'], y=classes_true, shape=gamma_shape)
+        
+        if i == 0:
+            sample_dataset = [X,classes_true,classes_og,classes_power]
         i += 1
-
-        #if failed_to_converge:
-        #    continue
 
         iters_og += [iter_og]
         iters_power += [iter_power]
-        #iters_bregman += [iter_bregman]
 
         times_og += [time_og]
         times_power += [time_power]
-        #times_bregman += [time_bregman]
 
         VIs_og += [VI(k, classes_true, k, classes_og)]
         VIs_power += [VI(k, classes_true, k, classes_power)]
-        #VIs_bregman += [VI(k, classes_true, k, classes_bregman)]
 
         ARIs_og += [adjusted_rand_score(classes_true, classes_og)]
         ARIs_power += [adjusted_rand_score(classes_true, classes_power)]
-        #ARIs_bregman += [adjusted_rand_score(classes_true, classes_bregman)]
 
         NMIs_og += [normalized_mutual_info_score(classes_true, classes_og)]
         NMIs_power += [normalized_mutual_info_score(classes_true, classes_power)]
-        #NMIs_bregman += [normalized_mutual_info_score(classes_true, classes_bregman)]
 
         cnt += 1
 
@@ -141,36 +101,134 @@ def run_experiment(init_params, exp_dir):
     ARIs_power = np.array(ARIs_power)
     NMIs_power = np.array(NMIs_power)
 
-    #iters_bregman = np.array(iters_bregman)
-    #times_bregman = np.array(times_bregman)
-    #VIs_bregman = np.array(VIs_bregman)
-    #ARIs_bregman = np.array(ARIs_bregman)
-    #NMIs_bregman = np.array(NMIs_bregman)
-
     sqrt_n = np.sqrt(init_params['n_trials'])
 
-    #print(exp_file)
-    with open(exp_file, 'w', newline='') as csv_file:
-        writer = csv.writer(csv_file)
-        writer.writerow(["Mean VI K-Means", "SE VI K-Means", "Mean ARI K-Means", "SE ARI K-Means", "Mean NMI K-Means", "SE NMI K-Means", "Mean VI Power K-Means", "SE VI Power K-Means", "Mean ARI Power K-Means", "SE ARI Power K-Means", "Mean NMI Power K-Means", "SE NMI Power K-Means"])
-        writer.writerow([np.mean(VIs_og), np.std(VIs_og)/sqrt_n, np.mean(ARIs_og), np.std(ARIs_og)/sqrt_n, np.mean(NMIs_og), np.std(NMIs_og)/sqrt_n, np.mean(VIs_power), np.std(VIs_power)/sqrt_n, np.mean(ARIs_power), np.std(ARIs_power)/sqrt_n, np.mean(NMIs_power), np.std(NMIs_power)/sqrt_n])
-        #writer.writerow(["Mean VI K-Means", "SE VI K-Means", "Mean ARI K-Means", "SE ARI K-Means", "Mean NMI K-Means", "SE NMI K-Means", "Mean VI Power K-Means", "SE VI Power K-Means", "Mean ARI Power K-Means", "SE ARI Power K-Means", "Mean NMI Power K-Means", "SE NMI Power K-Means", "Mean VI Bregman Power K-Means", "SE VI Bregman Power K-Means", "Mean ARI Bregman Power K-Means", "SE ARI Bregman Power K-Means", "Mean NMI Bregman Power K-Means", "SE NMI Bregman Power K-Means"])
-        #writer.writerow([np.mean(VIs_og), np.std(VIs_og)/sqrt_n, np.mean(ARIs_og), np.std(ARIs_og)/sqrt_n, np.mean(NMIs_og), np.std(NMIs_og)/sqrt_n, np.mean(VIs_power), np.std(VIs_power)/sqrt_n, np.mean(ARIs_power), np.std(ARIs_power)/sqrt_n, np.mean(NMIs_power), np.std(NMIs_power)/sqrt_n, np.mean(VIs_bregman), np.std(VIs_bregman)/sqrt_n, np.mean(ARIs_bregman), np.std(ARIs_bregman)/sqrt_n, np.mean(NMIs_bregman), np.std(NMIs_bregman)/sqrt_n])
-
+    show_dataset(sample_dataset)
     print("Experiment Done. Dimension: ", init_params['data_params']['n_features'], "s_0: ", init_params['s_0'], ", Time Elapsed (sec): ", time.time() - start_exp)
+    return [init_params['data_params']['n_features'],np.mean(VIs_og), np.mean(ARIs_og), np.mean(NMIs_og), np.mean(VIs_power), np.mean(ARIs_power), np.mean(NMIs_power)]
 
 def run_experiment_group(init_params, s_0s, exp_dir='exp_dir', exp_id=None):
-    exp_dir = setup_experiment_group(exp_dir, exp_id)
+    df = 0
     for s_0 in s_0s:
         init_params['s_0'] = s_0
         print("running experiment, s_0: ", init_params['s_0'])
-        run_experiment(init_params, exp_dir)
+        df = run_experiment(init_params)
 
+    return df
 
+def show_dataset(info):
+    X = info[0]
+    true_classes = np.array(info[1])
+    k_means_classes = np.array(info[2])
+    power_classes = np.array(info[3])
+
+    plt_data, data_ax = plt.subplots(figsize=(10,10))
+    data_ax.set_title('True Clusters in 2 Dimensions')
+    data_ax.set(xlabel='X axis',ylabel='Y axis')
+
+    plt_og, og_ax = plt.subplots(figsize=(10,10))
+    og_ax.set_title('k-Means Clusters in 2 Dimensions')
+    og_ax.set(xlabel='X axis',ylabel='Y axis')
+
+    plt_pwer, pwer_ax = plt.subplots(figsize=(10,10))
+    pwer_ax.set_title('Power k-Means Clusters in 2 Dimensions')
+    pwer_ax.set(xlabel='X axis',ylabel='Y axis')
+    colors = ['blue', 'red', 'purple']
+    for cl in np.unique(true_classes):
+        l = 'Cluster ' + str(cl)
+        cluster_mems = np.where(true_classes==cl)
+        points = X[cluster_mems]
+
+        cluster_mems_k = np.where(k_means_classes==cl)
+        points_k = X[cluster_mems_k]
+
+        cluster_mems_pwer = np.where(power_classes==cl)
+        points_pwer = X[cluster_mems_pwer]
+        #print(points)
+        data_ax.scatter(points[:,0], points[:,1], label=l, color=colors[cl])
+        og_ax.scatter(points_k[:,0], points_k[:,1], label=l, color=colors[cl])
+        pwer_ax.scatter(points_pwer[:,0], points_pwer[:,1], label=l,color=colors[cl])
+    plt_data.legend()
+    plt_og.legend()
+    plt_pwer.legend()
+    plt_data.savefig('true_clusters.png')
+    plt_og.savefig('k_means_clusters.png')
+    plt_pwer.savefig('power_means_clusters.png')
+    
+
+def make_plots(dfs):
+    #fig, axs = plt.subplots(1, 3, figsize=(15,5))
+    x = dfs[0][0]['Features']
+    plt_nmi, nmi_ax = plt.subplots(figsize=(10,10))
+    #plt_nmi.suptitle('Mean NMI')
+    nmi_ax.set_title('Mean NMI')
+    nmi_ax.set(xlabel='Number of Features',ylabel='Mean NMI')
+
+    plt_ari, ari_ax = plt.subplots(figsize=(10,10))
+    #plt_nmi.suptitle('Mean NMI')
+    ari_ax.set_title('Mean ARI')
+    ari_ax.set(xlabel='Number of Features',ylabel='Mean ARI')
+
+    plt_vi, vi_ax = plt.subplots(figsize=(10,10))
+    #plt_nmi.suptitle('Mean NMI')
+    vi_ax.set_title('Mean VI')
+    vi_ax.set(xlabel='Number of Features',ylabel='Mean VI')
+    #plt_ari = plt.figure(figsize=(15,10))
+    #plt_ari.suptitle('Mean ARI')
+    #plt_ari.set(xlabel='Number of Features',ylabel='Mean ARI')
+    #plt_vi = plt.figure(figsize=(15,10))
+    #plt_vi.suptitle('Mean VI')
+    #plt_vi.set(xlabel='Number of Features',ylabel='Mean VI')
+    nmi_ax.plot(x, dfs[0][0]['NMI Lloyd'], label='k-Means', color='blue')
+    ari_ax.plot(x, dfs[0][0]['ARI Lloyd'], label='k-Means', color='blue')
+    vi_ax.plot(x, dfs[0][0]['VI Lloyd'], label='k-Means', color='blue')
+    for tup in dfs:
+        df = tup[0]
+        s_0 = tup[1]
+
+        #label_1 = 'k-Means_' + s_0
+        label_2 = 'Power k-Means_' + s_0
+        
+        nmi_ax.plot(x, df['NMI Power'], label=label_2)
+
+        
+        ari_ax.plot(x, df['ARI Power'], label=label_2)
+
+        
+        vi_ax.plot(x, df['VI Power'], label=label_2)
+
+        table_name = s_0 + '_table.csv'
+        df = df.round(3)
+        df.to_csv(table_name)
+        #axs[0].legend()
+        
+        #plt_ari.plot(x, df['ARI Lloyd'], label=label_1)
+        #plt_ari.plot(x, df['ARI Power'], label=label_2)
+        
+        #axs[1].legend()
+        
+        #plt_vi.plot(x, df['VI Lloyd'], label=label_1)
+        #plt_vi.plot(x, df['VI Power'], label=label_2)
+        #axs[2].legend()
+    plt_nmi.legend()
+    plt_ari.legend()
+    plt_vi.legend()
+    plt_nmi.savefig('nmi.png')
+    plt_ari.savefig('ari.png')
+    plt_vi.savefig('vi.png')
+
+    #plt.show()
+    #plot_name = name + '_metrics.png'
+    
+    #plt.savefig(plot_name)
+    
+    #print(df.head())
+    
+    #plt.show()
 
 if __name__ == "__main__":
     k = 3
-    d = 100
+    d = 2
     
     init_params_gaussian = {
         'n_trials': 250,
@@ -191,7 +249,7 @@ if __name__ == "__main__":
             'n_trials': 250,
             'bregman_dist': 'multinomial',
             'data_params': {
-                'n_samples': 99,
+                'n_samples': 600,
                 'n_features': d,
                 'center_box': (1, 40),
                 'center_coordinates': np.array([[10]*d, [20]*d, [40]*d]),
@@ -232,8 +290,21 @@ if __name__ == "__main__":
             },
             'convergence_threshold': 10
     }
-
-    #run_experiment_group(init_params_binomial, s_0s=[-0.2, -1.0, -3.0, -9.0], exp_dir='binomial_2features_dir')
-    #init_params_binomial['n_features'] = 10
-    #print(init_params_binomial)
-    run_experiment_group(init_params_binomial, s_0s=[-0.2, -1.0, -3.0, -9.0], exp_dir='binomial_100_dir')
+    #dims = [2,10,50,100,200, 500, 800, 1000, 1500, 1800, 2000, 5000]
+    #s_0_list = [-18.0, -9.0, -3.0, -2.0, -1.0]
+    dims = [2]
+    s_0_list = [-2.0]
+    dfs = []
+    for s_0 in s_0_list:
+        df = pd.DataFrame(columns=["Features","VI Lloyd", "ARI Lloyd", "NMI Lloyd", "VI Power", "ARI Power", "NMI Power"])
+        name = str(s_0)
+        name = name.replace('-','neg')
+        for d in dims:
+            init_params_binomial['data_params']['n_features'] = d
+            init_params_binomial['data_params']['center_coordinates'] = np.array([[10]*d, [20]*d, [40]*d])
+            result = run_experiment_group(init_params_binomial, s_0s=[s_0])
+            df.loc[len(df)] = result
+        dfs.append((df,name))
+        print(df.head())
+        #make_plots(df,name)
+    #make_plots(dfs)
