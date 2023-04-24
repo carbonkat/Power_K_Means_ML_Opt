@@ -12,7 +12,7 @@ Default experiment settings use $s_0$ initializations of -18.0, -9.0, -3.0, -2.0
 
 Optional support is added for cluster plotting in 2-D and result graphing across all three metrics. Metrics have the option of being plotted using either individual clusters for each Power k-Means initialization or color-coded such that vanilla k-Means is plotted in blue and all versions of Power k-Means are plotted in red for better visualization. Default settings use the two-color plotting scheme, but this can be changed by switching the colors parameter in make_plots to 0.
 
-For real datasets, the High dimensional data must be downloaded from this site https://archive.ics.uci.edu/ml/datasets/gene+expression+cancer+RNA-Seq  as it is too large for github, but the label set must be from this repository ("gene_labels.csv"), as the labels were pre processed.
+For real datasets, use the file "run_experiments_real.py". The High dimensional data must be downloaded from this site https://archive.ics.uci.edu/ml/datasets/gene+expression+cancer+RNA-Seq  as it is too large for github, but the label set must be from this repository ("gene_labels.csv"), as the labels were pre processed.
 
 # Notes
 The only modifications that should be made are in the "main" function.
