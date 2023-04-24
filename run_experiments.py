@@ -204,13 +204,18 @@ def make_plots(dfs, colors):
     plt_ari.legend()
     plt_vi.legend()
 
-    nmi_name = 'nmi'
-    ari_name = 'ari'
-    vi_name = 'vi'
+    nmi_name = 'Results/nmi'
+    ari_name = 'Results/ari'
+    vi_name = 'Results/vi'
     if colors == 1:
         nmi_name = nmi_name + '_2color.png'
         ari_name = ari_name + '_2color.png'
         vi_name = vi_name + '_2color.png'
+    else:
+        nmi_name = nmi_name + '.png'
+        ari_name = ari_name + '.png'
+        vi_name = vi_name + '.png'
+        
     plt_nmi.savefig('Results/'+nmi_name)
     plt_ari.savefig('Results/'+ari_name)
     plt_vi.savefig('Results/'+vi_name)
