@@ -9,7 +9,6 @@ import torch
 
 from utils import *
 from euclidean_k_means import kmeans, power_kmeans
-from bregman_k_means import power_kmeans_bregman
 
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 import pandas as pd
@@ -103,7 +102,7 @@ def run_experiment(init_params):
 
     sqrt_n = np.sqrt(init_params['n_trials'])
 
-    show_dataset(sample_dataset)
+    #show_dataset(sample_dataset)
     print("Experiment Done. Dimension: ", init_params['data_params']['n_features'], "s_0: ", init_params['s_0'], ", Time Elapsed (sec): ", time.time() - start_exp)
     return [init_params['data_params']['n_features'],np.mean(VIs_og), np.mean(ARIs_og), np.mean(NMIs_og), np.mean(VIs_power), np.mean(ARIs_power), np.mean(NMIs_power)]
 
@@ -144,10 +143,11 @@ def show_dataset(info):
 
         cluster_mems_pwer = np.where(power_classes==cl)
         points_pwer = X[cluster_mems_pwer]
-        #print(points)
+
         data_ax.scatter(points[:,0], points[:,1], label=l, color=colors[cl])
         og_ax.scatter(points_k[:,0], points_k[:,1], label=l, color=colors[cl])
         pwer_ax.scatter(points_pwer[:,0], points_pwer[:,1], label=l,color=colors[cl])
+
     plt_data.legend()
     plt_og.legend()
     plt_pwer.legend()
@@ -156,75 +156,65 @@ def show_dataset(info):
     plt_pwer.savefig('power_means_clusters.png')
     
 
-def make_plots(dfs):
-    #fig, axs = plt.subplots(1, 3, figsize=(15,5))
+def make_plots(dfs, colors):
+    '''
+    dfs: list of dataframes for each k-Means experiment
+    colors: activates/deactivates color scheme in plotting:
+        1: two-color scheme
+        0: all color scheme
+    '''
     x = dfs[0][0]['Features']
     plt_nmi, nmi_ax = plt.subplots(figsize=(10,10))
-    #plt_nmi.suptitle('Mean NMI')
     nmi_ax.set_title('Mean NMI')
     nmi_ax.set(xlabel='Number of Features',ylabel='Mean NMI')
 
     plt_ari, ari_ax = plt.subplots(figsize=(10,10))
-    #plt_nmi.suptitle('Mean NMI')
     ari_ax.set_title('Mean ARI')
     ari_ax.set(xlabel='Number of Features',ylabel='Mean ARI')
 
     plt_vi, vi_ax = plt.subplots(figsize=(10,10))
-    #plt_nmi.suptitle('Mean NMI')
     vi_ax.set_title('Mean VI')
     vi_ax.set(xlabel='Number of Features',ylabel='Mean VI')
-    #plt_ari = plt.figure(figsize=(15,10))
-    #plt_ari.suptitle('Mean ARI')
-    #plt_ari.set(xlabel='Number of Features',ylabel='Mean ARI')
-    #plt_vi = plt.figure(figsize=(15,10))
-    #plt_vi.suptitle('Mean VI')
-    #plt_vi.set(xlabel='Number of Features',ylabel='Mean VI')
+
     nmi_ax.plot(x, dfs[0][0]['NMI Lloyd'], label='k-Means', color='blue')
     ari_ax.plot(x, dfs[0][0]['ARI Lloyd'], label='k-Means', color='blue')
     vi_ax.plot(x, dfs[0][0]['VI Lloyd'], label='k-Means', color='blue')
     for tup in dfs:
         df = tup[0]
         s_0 = tup[1]
+        c = ''
+        if colors == 1:
+            c = 'red'
 
-        #label_1 = 'k-Means_' + s_0
         label_2 = 'Power k-Means_' + s_0
         
-        nmi_ax.plot(x, df['NMI Power'], label=label_2)
+        nmi_ax.plot(x, df['NMI Power'], label=label_2, color=c)
 
         
-        ari_ax.plot(x, df['ARI Power'], label=label_2)
+        ari_ax.plot(x, df['ARI Power'], label=label_2, color=c)
 
         
-        vi_ax.plot(x, df['VI Power'], label=label_2)
+        vi_ax.plot(x, df['VI Power'], label=label_2, color=c)
 
         table_name = s_0 + '_table.csv'
         df = df.round(3)
-        df.to_csv(table_name)
-        #axs[0].legend()
-        
-        #plt_ari.plot(x, df['ARI Lloyd'], label=label_1)
-        #plt_ari.plot(x, df['ARI Power'], label=label_2)
-        
-        #axs[1].legend()
-        
-        #plt_vi.plot(x, df['VI Lloyd'], label=label_1)
-        #plt_vi.plot(x, df['VI Power'], label=label_2)
-        #axs[2].legend()
+        df.to_csv('Results/'+table_name)
+
     plt_nmi.legend()
     plt_ari.legend()
     plt_vi.legend()
-    plt_nmi.savefig('nmi.png')
-    plt_ari.savefig('ari.png')
-    plt_vi.savefig('vi.png')
 
-    #plt.show()
-    #plot_name = name + '_metrics.png'
-    
-    #plt.savefig(plot_name)
-    
-    #print(df.head())
-    
-    #plt.show()
+    nmi_name = 'nmi'
+    ari_name = 'ari'
+    vi_name = 'vi'
+    if colors == 1:
+        nmi_name = nmi_name + '_2color.png'
+        ari_name = ari_name + '_2color.png'
+        vi_name = vi_name + '_2color.png'
+    plt_nmi.savefig('Results/'+nmi_name)
+    plt_ari.savefig('Results/'+ari_name)
+    plt_vi.savefig('Results/'+vi_name)
+
 
 if __name__ == "__main__":
     k = 3
@@ -249,7 +239,7 @@ if __name__ == "__main__":
             'n_trials': 250,
             'bregman_dist': 'multinomial',
             'data_params': {
-                'n_samples': 600,
+                'n_samples': 99,
                 'n_features': d,
                 'center_box': (1, 40),
                 'center_coordinates': np.array([[10]*d, [20]*d, [40]*d]),
@@ -290,11 +280,10 @@ if __name__ == "__main__":
             },
             'convergence_threshold': 10
     }
-    #dims = [2,10,50,100,200, 500, 800, 1000, 1500, 1800, 2000, 5000]
-    #s_0_list = [-18.0, -9.0, -3.0, -2.0, -1.0]
-    dims = [2]
-    s_0_list = [-2.0]
+    dims = [2,10,50,100,200, 500, 800, 1000, 1500, 1800, 2000, 5000]
+    s_0_list = [-18.0, -9.0, -3.0, -2.0, -1.0]
     dfs = []
+
     for s_0 in s_0_list:
         df = pd.DataFrame(columns=["Features","VI Lloyd", "ARI Lloyd", "NMI Lloyd", "VI Power", "ARI Power", "NMI Power"])
         name = str(s_0)
@@ -306,5 +295,5 @@ if __name__ == "__main__":
             df.loc[len(df)] = result
         dfs.append((df,name))
         print(df.head())
-        #make_plots(df,name)
-    #make_plots(dfs)
+
+    make_plots(dfs, 1)
