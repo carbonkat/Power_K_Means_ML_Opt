@@ -216,9 +216,9 @@ def make_plots(dfs, colors):
         ari_name = ari_name + '.png'
         vi_name = vi_name + '.png'
         
-    plt_nmi.savefig('Results/'+nmi_name)
-    plt_ari.savefig('Results/'+ari_name)
-    plt_vi.savefig('Results/'+vi_name)
+    plt_nmi.savefig(nmi_name)
+    plt_ari.savefig(ari_name)
+    plt_vi.savefig(vi_name)
 
 
 if __name__ == "__main__":
